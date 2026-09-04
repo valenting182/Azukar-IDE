@@ -184,8 +184,7 @@ import {
   setEditorFontSizePreference,
 } from '@/prefs/editorFont'
 import { setLocalePreference } from '@/prefs/locale'
-import { beginThemeTransition, setThemePreference, themeRef } from '@/prefs/theme'
-import { FIREFOX_NOTICE_KEY, type AppLocale, type AppTheme } from '@/prefs/types'
+import { FIREFOX_NOTICE_KEY, type AppLocale } from '@/prefs/types'
 
 type DumpDest = 'console' | 'bin' | 'hex'
 type FpgaMenu = 'flash' | 'sram' | 'read' | 'eeprom' | 'tools'
@@ -205,7 +204,6 @@ type UploadThen = 'flash' | 'sram'
 
 const { t, locale } = useI18n()
 
-const isDark = computed(() => themeRef.value === 'dark')
 const initialBoard = resolveBoard(loadBoardId())
 setActiveBoard(initialBoard)
 const initialStarter = projectStarter(initialBoard)
@@ -497,16 +495,6 @@ function logNeedWebSerial() {
     return
   }
   appendLog(t('fpga.needWebSerial'))
-}
-
-function onTheme(next: AppTheme) {
-  if (themeRef.value === next) return
-  beginThemeTransition()
-  setThemePreference(next)
-}
-
-function toggleTheme() {
-  onTheme(isDark.value ? 'light' : 'dark')
 }
 
 function dismissFirefoxNotice() {
@@ -1870,7 +1858,6 @@ onBeforeUnmount(() => {
       :checking="checking"
       :active-action="usbAction"
       :has-bitstream="hasBitstream"
-      :is-dark="isDark"
       :locale="locale"
       :line-count-label="lineCountLabel"
       @select-board="onBoardSelect"
@@ -1886,7 +1873,6 @@ onBeforeUnmount(() => {
       @reset-board="onReset"
       @disconnect-board="onDisconnect"
       @connect-board="onConnect"
-      @toggle-theme="toggleTheme"
       @set-locale="onLocale"
       @open-help="showHelp = true"
     />
@@ -2282,31 +2268,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </div>
-
-    <footer class="shrink-0 border-t border-border px-4 py-1.5 text-center text-[0.8125rem] leading-relaxed text-muted max-md:px-3 max-md:text-xs">
-      <span>Maximiliano Martin Simonazzi</span>
-      <span class="mx-1.5 text-subtle">·</span>
-      <a
-        class="text-muted no-underline hover:text-fg hover:underline"
-        href="https://www.maxisimonazzi.com.ar"
-        target="_blank"
-        rel="noopener noreferrer"
-      >www.maxisimonazzi.com.ar</a>
-      <span class="mx-1.5 text-subtle">·</span>
-      <a
-        class="text-muted no-underline hover:text-fg hover:underline"
-        href="https://github.com/maxisimonazzi"
-        target="_blank"
-        rel="noopener noreferrer"
-      >github.com/maxisimonazzi</a>
-      <span class="mx-1.5 text-subtle">·</span>
-      <a
-        class="text-muted no-underline hover:text-fg hover:underline"
-        href="https://www.linkedin.com/in/maxisimonazzi/"
-        target="_blank"
-        rel="noopener noreferrer"
-      >linkedin.com/in/maxisimonazzi</a>
-    </footer>
 
     <div
       v-if="showNoBin"

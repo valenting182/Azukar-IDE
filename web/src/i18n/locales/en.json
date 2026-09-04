@@ -39,7 +39,7 @@
     "genericBlurb": "Listed profile under boards/<id>/. ADBUS goes to the WebUSB programmer; FPGA pins come from the project .pcf."
   },
   "app": {
-    "title": "Lattice iCE40 FPGA Web Flasher",
+    "title": "Azukar IDE",
     "themeLight": "Light",
     "themeDark": "Dark",
     "paletteGroup": "Palette",

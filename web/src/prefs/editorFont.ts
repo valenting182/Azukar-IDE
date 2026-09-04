@@ -5,9 +5,9 @@ import { readLocal, writeLocal } from '@/lib/storage'
 
 import { EDITOR_FONT_SIZE_KEY } from './types'
 
-export const EDITOR_FONT_MIN = 12
-export const EDITOR_FONT_MAX = 22
-export const EDITOR_FONT_DEFAULT = 13
+export const EDITOR_FONT_MIN = 14
+export const EDITOR_FONT_MAX = 24
+export const EDITOR_FONT_DEFAULT = 15
 
 export const editorFontSizeRef = ref<number>(EDITOR_FONT_DEFAULT)
 

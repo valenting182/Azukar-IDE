@@ -1,27 +1,19 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0b0f14" />
+    <meta name="theme-color" content="#1e1e1e" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lattice iCE40 FPGA Web Flasher</title>
+    <title>Azukar IDE</title>
     <script>
       (function () {
+        document.documentElement.classList.add('dark')
         try {
-          var t = localStorage.getItem('lattice.theme') || localStorage.getItem('azukar.theme')
-          if (t !== 'light' && t !== 'dark') t = 'dark'
-          if (t === 'dark') document.documentElement.classList.add('dark')
-          var palettes = ['amber', 'cyan', 'sky', 'red', 'violet', 'orange', 'green', 'yellow']
-          var p = localStorage.getItem('lattice.palette') || localStorage.getItem('azukar.palette')
-          if (palettes.indexOf(p) === -1) p = 'amber'
-          document.documentElement.setAttribute('data-palette', p)
           var l = localStorage.getItem('lattice.locale') || localStorage.getItem('azukar.locale')
           if (l === 'en' || l === 'es') document.documentElement.lang = l
-        } catch (e) {
-          document.documentElement.classList.add('dark')
-        }
+        } catch (e) {}
       })()
     </script>
   </head>

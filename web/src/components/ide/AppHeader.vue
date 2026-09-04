@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { BoardProfile } from '@/fpga/boardTypes'
 import BoardSelector from '@/components/BoardSelector.vue'
-import PaletteSelector from '@/components/PaletteSelector.vue'
 
 const props = defineProps<{
   boardId: string
@@ -15,7 +14,6 @@ const props = defineProps<{
   checking: boolean
   activeAction: string | null
   hasBitstream: boolean
-  isDark: boolean
   locale: string
   lineCountLabel?: string
 }>()
@@ -34,7 +32,6 @@ const emit = defineEmits<{
   'reset-board': []
   'disconnect-board': []
   'connect-board': []
-  'toggle-theme': []
   'set-locale': [loc: 'es' | 'en']
   'open-help': []
 }>()
@@ -54,14 +51,9 @@ const isUploading = computed(() => {
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-2">
         <img src="/favicon.svg" alt="Azukar" class="h-7 w-7" width="28" height="28">
-        <div class="flex flex-col">
-          <span class="text-sm font-bold tracking-tight text-fg leading-none">
-            {{ t('app.title') }}
-          </span>
-          <span class="text-[0.6875rem] font-medium text-muted">
-            Lattice iCE40 Web IDE & Flasher
-          </span>
-        </div>
+        <span class="text-base font-bold tracking-tight text-fg leading-none">
+          Azukar IDE
+        </span>
       </div>
 
       <!-- Selector de Placa -->
@@ -283,24 +275,6 @@ const isUploading = computed(() => {
         </button>
       </div>
 
-      <!-- Paleta -->
-      <PaletteSelector />
-
-      <!-- Tema Claro / Oscuro -->
-      <button
-        type="button"
-        class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
-        :title="isDark ? t('app.themeLight') : t('app.themeDark')"
-        @click="emit('toggle-theme')"
-      >
-        <svg v-if="!isDark" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-        <svg v-else class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm0-16a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zm10-8a1 1 0 0 1-1 1h-1a1 1 0 1 1 0-2h1a1 1 0 0 1 1 1zM4 12a1 1 0 0 1-1 1H2a1 1 0 1 1 0-2h1a1 1 0 0 1 1 1zm14.95 6.364a1 1 0 0 1 0 1.414l-.707.707a1 1 0 1 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 0zM6.464 5.05a1 1 0 0 1 0 1.414l-.707.707A1 1 0 0 1 4.343 5.757l.707-.707a1 1 0 0 1 1.414 0zm12.728 0a1 1 0 0 1-1.414 0l-.707-.707a1 1 0 1 1 1.414-1.414l.707.707a1 1 0 0 1 0 1.414zM6.464 18.95a1 1 0 0 1-1.414 0l-.707-.707a1 1 0 1 1 1.414-1.414l.707.707a1 1 0 0 1 0 1.414z" />
-        </svg>
-      </button>
-
       <!-- Ayuda -->
       <button
         type="button"
@@ -309,6 +283,12 @@ const isUploading = computed(() => {
       >
         {{ t('app.help') }}
       </button>
+
+      <!-- Título de la app arriba a la derecha -->
+      <div class="ml-1 hidden h-4 w-px bg-border/80 sm:block" />
+      <span class="text-xs font-bold uppercase tracking-wider text-muted/90 select-none">
+        Azukar IDE
+      </span>
     </div>
   </header>
 </template>

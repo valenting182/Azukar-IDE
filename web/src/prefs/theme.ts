@@ -13,12 +13,12 @@ export function readStoredTheme(): AppTheme | null {
 }
 
 export function resolveTheme(): AppTheme {
-  return readStoredTheme() ?? 'dark'
+  return 'dark'
 }
 
-export function applyTheme(theme: AppTheme): void {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
-  themeRef.value = theme
+export function applyTheme(theme: AppTheme = 'dark'): void {
+  document.documentElement.classList.add('dark')
+  themeRef.value = 'dark'
 }
 
 export function writeTheme(theme: AppTheme): void {
