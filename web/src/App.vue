@@ -3,10 +3,8 @@ import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, shallowRe
 import { useI18n } from 'vue-i18n'
 
 import VerilogEditor from '@/components/VerilogEditor.vue'
-import PaletteSelector from '@/components/PaletteSelector.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import BoardHelpModal from '@/components/BoardHelpModal.vue'
-import BoardSelector from '@/components/BoardSelector.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import CustomBoardModal from '@/components/CustomBoardModal.vue'
 import ExportProjectModal from '@/components/ExportProjectModal.vue'
@@ -21,6 +19,10 @@ import ResourcePanel from '@/components/ResourcePanel.vue'
 import ShareModal from '@/components/ShareModal.vue'
 import SwapLabel from '@/components/ui/SwapLabel.vue'
 import UartPlot from '@/components/UartPlot.vue'
+import AppHeader from '@/components/ide/AppHeader.vue'
+import SplitEditor from '@/components/ide/SplitEditor.vue'
+import AdvancedToolsModal from '@/components/ide/AdvancedToolsModal.vue'
+import QuickStatusBanner from '@/components/ide/QuickStatusBanner.vue'
 import { setActiveBoard } from '@/fpga/activeBoard'
 import {
   customBoardProfiles,
@@ -85,7 +87,6 @@ import {
   closeFpgaTab,
   deleteFpgaFile,
   getAllowedImportExtensions,
-  isPcfFilename,
   normalizeFpgaFilename,
   openFpgaTab,
   pickPcfFile,
@@ -167,12 +168,10 @@ import {
 import { isFirefox, WEBSERIAL_FIREFOX_ADDON_URL } from '@/lib/isFirefox'
 import {
   clearOfflineCache,
-  formatBytes,
   offlineBytesRef,
   offlineStatusRef,
   refreshOfflineBytes,
 } from '@/lib/offline'
-import type { EditorLanguage } from '@/lib/verilogEditor'
 import { readSession, writeSession } from '@/lib/storage'
 import {
   autoCheckRef,
@@ -181,8 +180,6 @@ import {
   uartTimestampsRef,
 } from '@/prefs/ide'
 import {
-  EDITOR_FONT_MAX,
-  EDITOR_FONT_MIN,
   editorFontSizeRef,
   setEditorFontSizePreference,
 } from '@/prefs/editorFont'
@@ -192,8 +189,8 @@ import { FIREFOX_NOTICE_KEY, type AppLocale, type AppTheme } from '@/prefs/types
 
 type DumpDest = 'console' | 'bin' | 'hex'
 type FpgaMenu = 'flash' | 'sram' | 'read' | 'eeprom' | 'tools'
-/** Pestañas del panel derecho: consola, problemas y recursos del chip. */
-type RightTab = 'log' | 'problems' | 'resources'
+/** Pestañas del panel derecho: consola, problemas, recursos del chip y monitor UART. */
+type RightTab = 'log' | 'problems' | 'resources' | 'uart'
 type UsbAction =
   | 'connect'
   | 'disconnect'
@@ -330,6 +327,9 @@ const bramBusy = ref(false)
 const bramError = ref<string | null>(null)
 const bramNote = ref<string | null>(null)
 const hasBitstream = ref(false)
+const showAdvancedTools = ref(false)
+const lastSuccessMsg = ref<string | null>(null)
+const lastErrorMsg = ref<string | null>(null)
 
 // Visor hexadecimal
 const showHexView = ref(false)
@@ -354,37 +354,14 @@ let uartHistoryAt = -1
 const uartPendingChunks: { bytes: Uint8Array; text: string; ts: number }[] = []
 
 const slimBtn = '!h-[25px] min-h-[25px] px-2 text-xs rounded-md max-md:!h-8 max-md:min-h-8'
-const dropMenu =
-  'absolute z-30 mt-1 min-w-max rounded-lg border border-border bg-surface py-1 shadow-lg'
-const dropMenuStart = `${dropMenu} left-0`
-const dropMenuEnd = `${dropMenu} right-0`
-const dropItem =
-  'block w-full whitespace-nowrap px-3 py-2 text-left text-sm text-fg hover:bg-surface-2'
 const usbBusy = computed(() => usbAction.value != null)
-const showReconnect = computed(() => {
-  const k = lastUsbFail.value
-  return !usbBusy.value && (k === 'short_read' || k === 'winusb' || k === 'timeout')
-})
-const uiLocked = computed(() => busyCompile.value)
 const progressPct = computed(() => {
   if (progressTotal.value <= 0) return 0
   return Math.min(100, Math.round((progressDone.value / progressTotal.value) * 100))
 })
-const showProgress = computed(
-  () =>
-    usbAction.value === 'program' ||
-    usbAction.value === 'sram' ||
-    usbAction.value === 'read',
-)
-const openTabs = computed(() => visibleFpgaTabs(files.value))
 const activeFile = computed(
   () => files.value.find((f) => f.name === activeName.value && f.open) ?? null,
 )
-const editorLanguage = computed<EditorLanguage>(() => {
-  const name = activeFile.value?.name ?? ''
-  if (isPcfFilename(name)) return 'pcf'
-  return name.toLowerCase().endsWith('.v') ? 'verilog' : 'plain'
-})
 const lineCount = computed(() => {
   const text = activeFile.value?.content ?? ''
   if (!text) return 0
@@ -532,16 +509,6 @@ function toggleTheme() {
   onTheme(isDark.value ? 'light' : 'dark')
 }
 
-function localeBtnClass(code: AppLocale): string {
-  const active = locale.value === code
-  return [
-    'cursor-pointer rounded-md px-2 py-1 text-xs font-semibold tracking-wide transition-colors',
-    active
-      ? 'bg-primary/15 text-primary'
-      : 'text-muted hover:bg-surface-2 hover:text-fg',
-  ].join(' ')
-}
-
 function dismissFirefoxNotice() {
   showFirefoxNotice.value = false
   try {
@@ -560,12 +527,6 @@ function onLocale(next: AppLocale) {
 
 function bumpFont(delta: number) {
   setEditorFontSizePreference(editorFontPx.value + delta)
-}
-
-function setActiveContent(content: string) {
-  files.value = files.value.map((f) =>
-    f.name === activeName.value ? { ...f, content } : f,
-  )
 }
 
 function onOpenFile(name: string) {
@@ -1119,25 +1080,6 @@ function closeMenu() {
   openMenu.value = null
 }
 
-function toggleMenu(id: FpgaMenu) {
-  if (usbBusy.value) return
-  switch (id) {
-    case 'flash':
-    case 'sram':
-      if (uiLocked.value) return
-      break
-    case 'read':
-    case 'eeprom':
-    case 'tools':
-      break
-    default: {
-      const _exhaustive: never = id
-      return _exhaustive
-    }
-  }
-  openMenu.value = openMenu.value === id ? null : id
-}
-
 function onPointerDownAway(ev: PointerEvent) {
   const node = ev.target
   if (!(node instanceof Element) || node.closest('[data-fpga-drop]')) return
@@ -1221,15 +1163,6 @@ async function doSram() {
   })
 }
 
-function onFlashCompiled() {
-  closeMenu()
-  if (!bin.value) {
-    showNoBin.value = true
-    return
-  }
-  void doProgram()
-}
-
 function onSramCompiled() {
   closeMenu()
   if (!bin.value) {
@@ -1239,16 +1172,59 @@ function onSramCompiled() {
   void doSram()
 }
 
-function onFlashUpload() {
-  closeMenu()
-  uploadThen.value = 'flash'
-  fileInput.value?.click()
-}
-
 function onSramUpload() {
   closeMenu()
   uploadThen.value = 'sram'
   fileInput.value?.click()
+}
+
+async function onCheckSyntax() {
+  lastErrorMsg.value = null
+  lastSuccessMsg.value = null
+  await onCheck(true)
+  if (problemCounts.value.errors > 0) {
+    rightTab.value = 'problems'
+    lastErrorMsg.value = t('ide.checkFound', {
+      errors: problemCounts.value.errors,
+      warnings: problemCounts.value.warnings,
+    })
+  } else {
+    lastSuccessMsg.value = t('fpga.checkSyntaxOk')
+  }
+}
+
+async function onUploadToBoard() {
+  lastErrorMsg.value = null
+  lastSuccessMsg.value = null
+
+  if (!bin.value || checkDirty.value) {
+    await onCompile()
+    if (!bin.value) {
+      lastErrorMsg.value = t('fpga.compileNoBin')
+      if (problemCounts.value.errors > 0) rightTab.value = 'problems'
+      return
+    }
+  }
+
+  try {
+    await doProgram()
+    if (!lastUsbFail.value) {
+      lastSuccessMsg.value = '¡FPGA configurada con éxito desde la flash! (CDONE=1)'
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    lastErrorMsg.value = msg
+  }
+}
+
+function onFlashBinFile() {
+  showNoBin.value = false
+  uploadThen.value = 'flash'
+  fileInput.value?.click()
+}
+
+function onUpdateFileContent(name: string, content: string) {
+  files.value = files.value.map((f) => (f.name === name ? { ...f, content } : f))
 }
 
 async function onReset() {
@@ -1320,14 +1296,6 @@ async function onReadEeprom(dest: DumpDest) {
 
 async function onDisconnect() {
   await runUsb('disconnect', () => disconnectMpsse(appendLog))
-}
-
-async function onReconnect() {
-  appendLog(t('fpga.reconnecting'))
-  await runUsb('reconnect', async () => {
-    await closeMpsseSession({ forget: false, resetUsb: true })
-    await connectMpsse(appendLog)
-  })
 }
 
 function onChooseUpload() {
@@ -1873,86 +1841,49 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex h-dvh min-h-0 flex-col overflow-hidden max-desk:h-auto max-desk:min-h-dvh max-desk:overflow-x-hidden max-desk:overflow-y-auto">
-    <header class="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5 max-md:flex-col max-md:items-stretch max-md:gap-2 max-md:px-3">
-      <div class="flex items-center gap-3">
-        <img src="/favicon.svg" alt="" class="h-7 w-7" width="28" height="28">
-        <h1 class="text-sm font-semibold tracking-wide text-fg max-md:text-[0.8125rem] max-md:leading-snug">{{ t('app.title') }}</h1>
-      </div>
-      <div class="flex flex-wrap items-center justify-end gap-2 max-md:justify-start">
-        <label class="flex items-center gap-2 text-xs font-semibold text-muted">
-          <span class="whitespace-nowrap">{{ t('board.pickLabel') }}</span>
-          <BoardSelector
-            :model-value="boardId"
-            :listed="LISTED_BOARDS"
-            :customs="customBoards"
-            @update:model-value="onBoardSelect"
-            @help="onBoardHelp"
-            @custom="openCustomModal"
-          />
-        </label>
-        <div
-          class="inline-flex items-center gap-0.5 rounded-lg border border-border bg-surface-2/60 p-0.5"
-          role="group"
-          :aria-label="t('app.localeGroup')"
-        >
-          <button
-            type="button"
-            :class="localeBtnClass('es')"
-            :aria-pressed="locale === 'es'"
-            @click="onLocale('es')"
-          >
-            {{ t('app.localeEs') }}
-          </button>
-          <button
-            type="button"
-            :class="localeBtnClass('en')"
-            :aria-pressed="locale === 'en'"
-            @click="onLocale('en')"
-          >
-            {{ t('app.localeEn') }}
-          </button>
-        </div>
-        <PaletteSelector />
-        <button
-          type="button"
-          class="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-primary transition-colors hover:bg-surface-2"
-          :aria-label="isDark ? t('app.themeLight') : t('app.themeDark')"
-          :title="isDark ? t('app.themeLight') : t('app.themeDark')"
-          @click="toggleTheme"
-        >
-          <svg
-            v-if="!isDark"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            class="h-5 w-5"
-            aria-hidden="true"
-          >
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-          <svg
-            v-else
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            class="h-5 w-5"
-            aria-hidden="true"
-          >
-            <path
-              d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm0-16a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zm10-8a1 1 0 0 1-1 1h-1a1 1 0 1 1 0-2h1a1 1 0 0 1 1 1zM4 12a1 1 0 0 1-1 1H2a1 1 0 1 1 0-2h1a1 1 0 0 1 1 1zm14.95 6.364a1 1 0 0 1 0 1.414l-.707.707a1 1 0 1 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 0zM6.464 5.05a1 1 0 0 1 0 1.414l-.707.707A1 1 0 0 1 4.343 5.757l.707-.707a1 1 0 0 1 1.414 0zm12.728 0a1 1 0 0 1-1.414 0l-.707-.707a1 1 0 1 1 1.414-1.414l.707.707a1 1 0 0 1 0 1.414zM6.464 18.95a1 1 0 0 1-1.414 0l-.707-.707a1 1 0 1 1 1.414-1.414l.707.707a1 1 0 0 1 0 1.414z"
-            />
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="inline-flex h-9 cursor-pointer items-center rounded-lg px-2.5 text-xs font-semibold text-fg transition-colors hover:bg-surface-2"
-          :aria-label="t('app.help')"
-          @click="showHelp = true"
-        >
-          {{ t('app.help') }}
-        </button>
-      </div>
-    </header>
+    <!-- Barra Superior Simplificada -->
+    <AppHeader
+      :board-id="boardId"
+      :listed-boards="LISTED_BOARDS"
+      :custom-boards="customBoards"
+      :board-connected="boardConnected"
+      :usb-busy="usbBusy"
+      :busy-compile="busyCompile"
+      :checking="checking"
+      :active-action="usbAction"
+      :has-bitstream="hasBitstream"
+      :is-dark="isDark"
+      :locale="locale"
+      :line-count-label="lineCountLabel"
+      @select-board="onBoardSelect"
+      @board-help="onBoardHelp"
+      @open-custom-board="openCustomModal"
+      @check-syntax="onCheckSyntax"
+      @upload-board="onUploadToBoard"
+      @cancel-compile="onCancelCompile"
+      @flash-bin-file="onFlashBinFile"
+      @open-advanced="showAdvancedTools = true"
+      @reset-board="onReset"
+      @disconnect-board="onDisconnect"
+      @connect-board="onConnect"
+      @toggle-theme="toggleTheme"
+      @set-locale="onLocale"
+      @open-help="showHelp = true"
+    />
+
+    <!-- Banner de Estado de Flujo -->
+    <QuickStatusBanner
+      :busy-compile="busyCompile"
+      :usb-action="usbAction"
+      :checking="checking"
+      :progress-label="progressLabel"
+      :progress-pct="progressPct"
+      :last-success-message="lastSuccessMsg"
+      :last-error-message="lastErrorMsg"
+      @dismiss-success="lastSuccessMsg = null"
+      @dismiss-error="lastErrorMsg = null"
+      @view-problems="rightTab = 'problems'"
+    />
 
     <div class="flex min-h-0 flex-1 gap-4 overflow-hidden px-4 py-3 max-desk:flex-none max-desk:flex-col max-desk:overflow-visible max-md:gap-3 max-md:px-3">
       <section class="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-surface max-desk:flex-none max-md:flex-col">
@@ -1981,7 +1912,37 @@ onBeforeUnmount(() => {
             </p>
             <button
               type="button"
-              class="rounded-sm border border-dashed border-primary/60 px-1.5 py-0 text-sm font-bold text-primary hover:bg-primary/10"
+              class="cursor-pointer rounded p-1 text-muted hover:bg-surface-2 hover:text-fg"
+              :title="t('fpga.importProject')"
+              @click="onImportZip"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer rounded p-1 text-muted hover:bg-surface-2 hover:text-fg"
+              :title="t('fpga.exportProject')"
+              @click="onExportZip"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5 20h14v-2H5v2zm7-18l-5 5h3v6h4V7h3l-5-5z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer rounded p-1 text-muted hover:bg-surface-2 hover:text-error"
+              :title="t('fpga.resetProject')"
+              @click="askResetProject"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="cursor-pointer rounded-sm border border-dashed border-primary/60 px-1.5 py-0 text-sm font-bold text-primary hover:bg-primary/10"
               :title="t('fpga.addFile')"
               @click="onAddFile"
             >
@@ -2034,207 +1995,24 @@ onBeforeUnmount(() => {
             </li>
           </ul>
         </aside>
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface-2 px-2 py-0">
-            <div class="flex min-w-0 flex-1 items-stretch overflow-x-auto" role="tablist">
-              <div
-                v-for="f in openTabs"
-                :key="f.name"
-                role="tab"
-                :aria-selected="f.name === activeName"
-                class="relative flex shrink-0 items-center border-t-2 px-3 py-2 text-sm font-semibold whitespace-nowrap"
-                :class="
-                  f.name === activeName
-                    ? 'border-primary bg-surface text-fg'
-                    : 'border-transparent text-muted hover:bg-surface/60 hover:text-fg'
-                "
-              >
-                <input
-                  v-if="renaming === f.name && renameWhere === 'tabs'"
-                  ref="tabsRenameInput"
-                  v-model="renameDraft"
-                  class="w-28 bg-transparent font-mono text-sm text-fg outline-none"
-                  :aria-label="t('fpga.renameHint')"
-                  @click.stop
-                  @keydown="onRenameKey"
-                  @blur="commitRename"
-                >
-                <button
-                  v-else
-                  type="button"
-                  class="bg-transparent p-0 font-semibold text-inherit"
-                  :title="t('fpga.renameHint')"
-                  @click="activeName = f.name"
-                  @dblclick.prevent.stop="beginRename(f.name, 'tabs')"
-                >
-                  {{ f.name }}
-                </button>
-                <span
-                  class="ml-2 text-muted hover:text-error"
-                  :title="t('fpga.closeTab')"
-                  @click.stop="onCloseTab(f.name)"
-                >×</span>
-              </div>
-              <button
-                type="button"
-                class="my-1 ml-1 self-center rounded-sm border border-dashed border-primary/60 px-2 py-0.5 text-sm font-bold text-primary hover:bg-primary/10"
-                :title="t('fpga.addFile')"
-                @click="onAddFile"
-              >
-                +
-              </button>
-            </div>
-            <div class="ml-auto flex items-center gap-2 py-1 pr-1">
-              <button
-                type="button"
-                class="cursor-pointer rounded-md p-1.5 text-muted hover:bg-surface hover:text-fg"
-                :title="t('fpga.importProject')"
-                @click="onImportZip"
-              >
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="cursor-pointer rounded-md p-1.5 text-muted hover:bg-surface hover:text-fg"
-                :title="t('fpga.exportProject')"
-                @click="onExportZip"
-              >
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M5 20h14v-2H5v2zm7-18l-5 5h3v6h4V7h3l-5-5z" />
-                </svg>
-              </button>
-              <div data-fpga-drop class="relative">
-                <button
-                  type="button"
-                  class="inline-flex h-[25px] cursor-pointer items-center rounded-md border border-border bg-surface px-2 text-xs font-semibold text-fg hover:bg-surface-2 max-md:h-8"
-                  :title="t('tools.menuHint')"
-                  @click="toggleMenu('tools')"
-                >
-                  {{ t('tools.menu') }} ▾
-                </button>
-                <div v-if="openMenu === 'tools'" :class="dropMenuEnd">
-                  <button type="button" :class="dropItem" @click="onShare">
-                    {{ t('tools.share') }}
-                  </button>
-                  <button
-                    v-if="fsSupported"
-                    type="button"
-                    :class="dropItem"
-                    @click="onOpenFolder"
-                  >
-                    {{ t('tools.openFolder') }}
-                  </button>
-                  <button
-                    v-if="fsSupported"
-                    type="button"
-                    :class="dropItem"
-                    :disabled="!folderHandle"
-                    :style="folderHandle ? '' : 'opacity:.4;cursor:default'"
-                    @click="folderHandle && onSaveFolder()"
-                  >
-                    {{ folderName ? t('tools.saveFolderNamed', { name: folderName }) : t('tools.saveFolder') }}
-                  </button>
-                  <button
-                    v-if="fsSupported && folderHandle"
-                    type="button"
-                    :class="dropItem"
-                    @click="closeMenu(); closeFolder()"
-                  >
-                    {{ t('tools.closeFolder', { name: folderName }) }}
-                  </button>
-                  <div class="my-1 border-t border-border" />
-                  <p class="px-3 pt-1 text-[0.625rem] font-bold tracking-[0.14em] text-muted uppercase">
-                    {{ t('tools.artifacts') }}
-                  </p>
-                  <button
-                    v-for="name in ARTIFACT_NAMES"
-                    :key="name"
-                    type="button"
-                    :class="dropItem"
-                    :style="hasBitstream ? '' : 'opacity:.4;cursor:default'"
-                    :title="t('tools.artifactHint_' + name.replace('.', '_'))"
-                    @click="hasBitstream && onDownloadArtifact(name)"
-                  >
-                    {{ name }} <span class="text-muted">— {{ t('tools.artifactHint_' + name.replace('.', '_')) }}</span>
-                  </button>
-                  <div class="my-1 border-t border-border" />
-                  <button type="button" :class="dropItem" @click="openPll">
-                    {{ t('tools.pll') }}
-                  </button>
-                  <button type="button" :class="dropItem" @click="openBram">
-                    {{ t('tools.icebram') }}
-                  </button>
-                  <button type="button" :class="dropItem" @click="onShowBinHex">
-                    {{ t('tools.hexView') }}
-                  </button>
-                  <div class="my-1 border-t border-border" />
-                  <p class="px-3 py-1 text-[0.6875rem] text-muted">
-                    {{ t('offline.status', { state: t(`offline.state_${offlineStatusRef}`), size: formatBytes(offlineBytesRef) }) }}
-                  </p>
-                  <button type="button" :class="dropItem" @click="onClearOffline">
-                    {{ t('offline.clear') }}
-                  </button>
-                </div>
-              </div>
-              <button
-                type="button"
-                class="cursor-pointer rounded-md p-1.5 text-muted hover:bg-surface hover:text-error"
-                :title="t('fpga.resetProject')"
-                :aria-label="t('fpga.resetProject')"
-                @click="askResetProject"
-              >
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"
-                  />
-                </svg>
-              </button>
-              <span class="text-sm font-semibold text-fg">{{ lineCountLabel }}</span>
-              <div class="flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1">
-                <button
-                  type="button"
-                  class="cursor-pointer rounded px-1 py-0.5 text-sm text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-30"
-                  :disabled="editorFontPx <= EDITOR_FONT_MIN"
-                  :title="t('editor.fontSmaller')"
-                  @click="bumpFont(-1)"
-                >
-                  A−
-                </button>
-                <span class="min-w-[2rem] text-center text-sm font-semibold text-fg">{{ editorFontPx }}</span>
-                <button
-                  type="button"
-                  class="cursor-pointer rounded px-1 py-0.5 text-sm text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-30"
-                  :disabled="editorFontPx >= EDITOR_FONT_MAX"
-                  :title="t('editor.fontLarger')"
-                  @click="bumpFont(1)"
-                >
-                  A+
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="min-h-0 flex-1 p-2 max-md:h-[50vh] md:max-desk:h-[62vh]">
-            <VerilogEditor
-              v-if="activeFile"
-              :key="activeName"
-              ref="editorRef"
-              :model-value="activeFile.content"
-              :font-size="editorFontPx"
-              :language="editorLanguage"
-              :marks="editorMarks"
-              height-class="h-full min-h-0"
-              @update:model-value="setActiveContent"
-              @save="onEditorSave"
-            />
-            <p v-else class="p-4 text-sm text-muted">
-              {{ t('fpga.noOpenTab') }}
-            </p>
-          </div>
-        </div>
+        <!-- Editor con Soporte Split-View para Instanciación de Módulos -->
+        <SplitEditor
+          :files="files"
+          :active-name="activeName"
+          :font-size="editorFontPx"
+          :marks="editorMarks"
+          :line-count-label="lineCountLabel"
+          @update:active-name="onOpenFile"
+          @update-content="onUpdateFileContent"
+          @open-file="onOpenFile"
+          @close-tab="onCloseTab"
+          @add-file="onAddFile"
+          @save="onEditorSave"
+          @bump-font="bumpFont"
+        />
       </section>
 
+      <!-- Sección Derecha: Panel de Diagnóstico, Recursos, UART y Consola -->
       <section class="flex min-h-0 min-w-0 shrink-0 flex-col gap-2 max-desk:w-full max-desk:flex-none max-desk:shrink desk:w-[calc(35%+50px)]">
         <input
           ref="fileInput"
@@ -2250,218 +2028,21 @@ onBeforeUnmount(() => {
           class="hidden"
           @change="onZipFile"
         >
-        <div class="flex min-h-0 flex-1 flex-col gap-2 max-desk:flex-none">
-          <div class="flex min-h-0 flex-[1.2] flex-col overflow-hidden rounded-xl border border-border bg-surface max-desk:h-64 max-desk:flex-none">
-            <div class="relative z-20 shrink-0 border-b border-border px-2 py-1.5">
-              <div class="flex flex-wrap items-center gap-1.5">
-                <span
-                  class="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                  :class="boardConnected ? 'bg-success' : 'bg-error'"
-                  :title="boardConnected ? t('fpga.programmerOn') : t('fpga.programmerOff')"
-                  aria-hidden="true"
-                />
-                <p class="text-[0.625rem] font-bold tracking-[0.14em] text-muted uppercase">{{ t('fpga.recording') }}</p>
-                <AppButton
-                  size="sm"
-                  :class="slimBtn"
-                  :disabled="usbBusy || boardConnected"
-                  :title="t('fpga.connectProgrammerHint')"
-                  @click="onConnect"
-                >
-                  <SwapLabel
-                    :options="[t('fpga.connectProgrammer'), t('fpga.connectingProgrammer')]"
-                    :index="usbAction === 'connect' ? 1 : 0"
-                  />
-                </AppButton>
-                <AppButton
-                  size="sm"
-                  variant="outline"
-                  :class="slimBtn"
-                  :disabled="usbBusy || !boardConnected"
-                  :title="t('fpga.disconnectProgrammerHint')"
-                  @click="onDisconnect"
-                >
-                  <SwapLabel
-                    :options="[t('fpga.disconnectProgrammer'), t('fpga.closingProgrammer')]"
-                    :index="usbAction === 'disconnect' ? 1 : 0"
-                  />
-                </AppButton>
-                <AppButton
-                  v-if="showReconnect"
-                  size="sm"
-                  variant="outline"
-                  :class="slimBtn"
-                  :disabled="usbBusy"
-                  :title="t('fpga.reconnectHint')"
-                  @click="onReconnect"
-                >
-                  <SwapLabel
-                    :options="[t('fpga.reconnect'), t('fpga.reconnecting')]"
-                    :index="usbAction === 'reconnect' ? 1 : 0"
-                  />
-                </AppButton>
-                <!-- Reset vive con conectar/desconectar: es de la placa, no del
-                     flujo de compilar y grabar. Así la fila de abajo entra en una. -->
-                <AppButton
-                  size="sm"
-                  variant="outline"
-                  :class="slimBtn"
-                  :disabled="usbBusy"
-                  :title="t('fpga.resetHint')"
-                  @click="onReset"
-                >
-                  {{ t('fpga.reset') }}
-                </AppButton>
-                <div class="ml-auto flex items-center gap-3">
-                  <button
-                    type="button"
-                    class="text-xs font-semibold text-muted hover:text-fg disabled:opacity-30"
-                    :disabled="!logText"
-                    :title="t('fpga.exportConsoleHint')"
-                    @click="onExportLog"
-                  >
-                    {{ t('fpga.exportConsole') }}
-                  </button>
-                  <button
-                    type="button"
-                    class="text-xs font-semibold text-muted hover:text-fg disabled:opacity-30"
-                    :disabled="!logText"
-                    @click="clearLog"
-                  >
-                    {{ t('fpga.clearConsole') }}
-                  </button>
-                </div>
-              </div>
-              <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <!-- Un botón, dos roles: mientras compila, el mismo cancela. -->
-                <AppButton
-                  size="sm"
-                  :class="slimBtn"
-                  :disabled="!busyCompile && usbBusy"
-                  :title="busyCompile ? t('ide.cancelHint') : t('fpga.compileHint')"
-                  @click="busyCompile ? onCancelCompile() : onCompile()"
-                >
-                  <SwapLabel
-                    :options="[t('fpga.compile'), t('fpga.compilingCancel')]"
-                    :index="busyCompile ? 1 : 0"
-                  />
-                </AppButton>
-                <div data-fpga-drop class="relative">
-                  <button
-                    type="button"
-                    class="inline-flex h-[25px] cursor-pointer items-center rounded-md border border-border bg-surface-2 px-2 text-xs font-semibold text-fg hover:bg-surface-3 max-md:h-8"
-                    :class="usbBusy || uiLocked ? 'pointer-events-none opacity-60' : ''"
-                    @click="toggleMenu('flash')"
-                  >
-                    <SwapLabel
-                      :options="[t('fpga.flash'), t('fpga.flashing')]"
-                      :index="usbAction === 'program' ? 1 : 0"
-                    />
-                  </button>
-                  <div v-if="openMenu === 'flash'" :class="dropMenuStart">
-                    <button type="button" :class="dropItem" @click="onFlashCompiled">
-                      {{ t('fpga.flashCompiled') }}
-                    </button>
-                    <button type="button" :class="dropItem" @click="onFlashUpload">
-                      {{ t('fpga.flashUpload') }}
-                    </button>
-                    <div class="my-1 border-t border-border" />
-                    <button type="button" :class="dropItem" @click="onVerifyFlash">
-                      {{ t('ide.verify') }}
-                    </button>
-                    <label class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-fg hover:bg-surface-2">
-                      <input v-model="autoVerifyRef" type="checkbox" class="accent-primary">
-                      {{ t('ide.autoVerify') }}
-                    </label>
-                  </div>
-                </div>
-                <div data-fpga-drop class="relative">
-                  <button
-                    type="button"
-                    class="inline-flex h-[25px] cursor-pointer items-center rounded-md border border-border-strong bg-transparent px-2 text-xs font-semibold text-fg hover:bg-surface-2 max-md:h-8"
-                    :class="usbBusy || uiLocked ? 'pointer-events-none opacity-60' : ''"
-                    :title="t('fpga.sramHint')"
-                    @click="toggleMenu('sram')"
-                  >
-                    <SwapLabel
-                      :options="[t('fpga.sram'), t('fpga.sramming')]"
-                      :index="usbAction === 'sram' ? 1 : 0"
-                    />
-                  </button>
-                  <div v-if="openMenu === 'sram'" :class="dropMenuStart">
-                    <button type="button" :class="dropItem" @click="onSramCompiled">
-                      {{ t('fpga.sramCompiled') }}
-                    </button>
-                    <button type="button" :class="dropItem" @click="onSramUpload">
-                      {{ t('fpga.sramUpload') }}
-                    </button>
-                  </div>
-                </div>
-                <AppButton size="sm" variant="outline" :class="slimBtn" :disabled="usbBusy" @click="onErase">
-                  <SwapLabel
-                    :options="[t('fpga.eraseFlash'), t('fpga.erasing')]"
-                    :index="usbAction === 'erase' ? 1 : 0"
-                  />
-                </AppButton>
-                <div data-fpga-drop class="relative">
-                  <button
-                    type="button"
-                    class="inline-flex h-[25px] cursor-pointer items-center rounded-md border border-border-strong bg-transparent px-2 text-xs font-semibold text-fg hover:bg-surface-2 max-md:h-8"
-                    :class="usbBusy ? 'pointer-events-none opacity-60' : ''"
-                    @click="toggleMenu('read')"
-                  >
-                    <SwapLabel
-                      :options="[t('fpga.readFlash'), t('fpga.reading')]"
-                      :index="usbAction === 'read' ? 1 : 0"
-                    />
-                  </button>
-                  <div v-if="openMenu === 'read'" :class="dropMenuEnd">
-                    <button type="button" :class="dropItem" @click="onReadFlash('bin')">{{ t('fpga.readDownloadBin') }}</button>
-                    <button type="button" :class="dropItem" @click="onReadFlash('hex')">{{ t('fpga.readDownloadHex') }}</button>
-                    <button type="button" :class="dropItem" @click="onReadFlash('console')">{{ t('fpga.readShowConsole') }}</button>
-                  </div>
-                </div>
-                <div data-fpga-drop class="relative">
-                  <button
-                    type="button"
-                    class="inline-flex h-[25px] cursor-pointer items-center rounded-md border border-border-strong bg-transparent px-2 text-xs font-semibold text-fg hover:bg-surface-2 max-md:h-8"
-                    :class="usbBusy ? 'pointer-events-none opacity-60' : ''"
-                    :title="t('fpga.readEepromHint')"
-                    @click="toggleMenu('eeprom')"
-                  >
-                    <SwapLabel
-                      :options="[t('fpga.readEeprom'), t('fpga.eepromBusy')]"
-                      :index="usbAction === 'eeprom' ? 1 : 0"
-                    />
-                  </button>
-                  <div v-if="openMenu === 'eeprom'" :class="dropMenuEnd">
-                    <button type="button" :class="dropItem" @click="onReadEeprom('bin')">{{ t('fpga.readDownloadBin') }}</button>
-                    <button type="button" :class="dropItem" @click="onReadEeprom('hex')">{{ t('fpga.readDownloadHex') }}</button>
-                    <button type="button" :class="dropItem" @click="onReadEeprom('console')">{{ t('fpga.readShowConsole') }}</button>
-                  </div>
-                </div>
-              </div>
-              <div v-if="showProgress" class="mt-1.5">
-                <div class="mb-1 flex justify-between text-xs text-muted">
-                  <span>{{ progressLabel }}</span>
-                  <span>{{ progressPct }}%</span>
-                </div>
-                <div class="h-1.5 overflow-hidden rounded-full bg-surface-3">
-                  <div class="h-full bg-primary transition-[width] duration-75" :style="{ width: `${progressPct}%` }" />
-                </div>
-              </div>
-            </div>
-            <div class="flex shrink-0 items-center gap-1 border-b border-border px-2" role="tablist">
+
+        <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-xs">
+          <!-- Barra de Pestañas del Panel Derecho -->
+          <div class="flex shrink-0 items-center justify-between border-b border-border bg-surface-2 px-2" role="tablist">
+            <div class="flex items-center gap-1">
               <button
-                v-for="tab in (['log', 'problems', 'resources'] as RightTab[])"
+                v-for="tab in (['problems', 'resources', 'uart', 'log'] as RightTab[])"
                 :key="tab"
                 type="button"
                 role="tab"
                 :aria-selected="rightTab === tab"
-                class="cursor-pointer border-b-2 px-2 py-1.5 text-xs font-semibold"
+                class="cursor-pointer border-b-2 px-3 py-2 text-xs font-semibold transition-colors"
                 :class="
                   rightTab === tab
-                    ? 'border-primary text-fg'
+                    ? 'border-primary text-fg font-bold'
                     : 'border-transparent text-muted hover:text-fg'
                 "
                 @click="rightTab = tab"
@@ -2470,14 +2051,60 @@ onBeforeUnmount(() => {
                 <span
                   v-if="tab === 'problems' && problems.length"
                   class="ml-1 rounded px-1 text-[0.625rem]"
-                  :class="problemCounts.errors ? 'bg-error/15 text-error' : 'bg-warning/20 text-warning'"
+                  :class="problemCounts.errors ? 'bg-error/20 text-error font-bold' : 'bg-warning/20 text-warning'"
                 >{{ problems.length }}</span>
+                <span
+                  v-if="tab === 'uart' && uartConnected"
+                  class="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-success animate-pulse"
+                />
               </button>
-              <!-- El estado de la revisión: dice si lo que ves está al día y
-                   corre una nueva con un click. Reemplaza al botón Revisar. -->
+            </div>
+
+            <!-- Acciones según pestaña -->
+            <div class="flex items-center gap-2 py-1">
+              <!-- En Tab Log o UART: Botones de Limpiar y Guardar/Exportar -->
+              <template v-if="rightTab === 'log'">
+                <button
+                  type="button"
+                  class="cursor-pointer text-[0.6875rem] font-semibold text-muted hover:text-fg disabled:opacity-30"
+                  :disabled="!logText"
+                  :title="t('fpga.exportConsoleHint')"
+                  @click="onExportLog"
+                >
+                  {{ t('fpga.exportConsole') }}
+                </button>
+                <button
+                  type="button"
+                  class="cursor-pointer text-[0.6875rem] font-semibold text-muted hover:text-fg disabled:opacity-30"
+                  :disabled="!logText"
+                  @click="clearLog"
+                >
+                  {{ t('fpga.clearConsole') }}
+                </button>
+              </template>
+              <template v-else-if="rightTab === 'uart'">
+                <button
+                  type="button"
+                  class="cursor-pointer text-[0.6875rem] font-semibold text-muted hover:text-fg disabled:opacity-30"
+                  :disabled="!uartView"
+                  @click="saveUartLog"
+                >
+                  {{ t('uart.saveLog') }}
+                </button>
+                <button
+                  type="button"
+                  class="cursor-pointer text-[0.6875rem] font-semibold text-muted hover:text-fg disabled:opacity-30"
+                  :disabled="!uartView"
+                  @click="clearUart"
+                >
+                  {{ t('fpga.clearConsole') }}
+                </button>
+              </template>
+
+              <!-- Indicador de autoCheck / estado de chequeo -->
               <button
                 type="button"
-                class="ml-auto inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[0.6875rem] hover:bg-surface-2 disabled:cursor-default"
+                class="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[0.6875rem] hover:bg-surface-3 disabled:cursor-default"
                 :class="{
                   'text-muted': checkState !== 'clean',
                   'text-success': checkState === 'clean',
@@ -2500,15 +2127,126 @@ onBeforeUnmount(() => {
                   :index="checkState === 'checking' ? 1 : checkState === 'clean' ? 2 : 0"
                 />
               </button>
-              <label
-                class="flex cursor-pointer items-center gap-1 text-[0.6875rem] text-muted"
-                :title="t('ide.autoCheckHint')"
-              >
-                <input v-model="autoCheckRef" type="checkbox" class="accent-primary">
-                {{ t('ide.autoCheck') }}
-              </label>
             </div>
-            <div v-show="rightTab === 'log'" ref="logEl" class="min-h-0 flex-1 overflow-y-auto">
+          </div>
+
+          <!-- Contenido de las Pestañas -->
+          <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
+            <!-- Pestaña 1: Problemas -->
+            <ProblemsPanel
+              v-if="rightTab === 'problems'"
+              :items="problems"
+              :checking="checking"
+              @select="openProblem"
+            />
+
+            <!-- Pestaña 2: Recursos y Timing -->
+            <div v-else-if="rightTab === 'resources'" class="min-h-0 flex-1 overflow-y-auto">
+              <ResourcePanel
+                :report="report"
+                :stat="stat"
+                :history="buildHistory"
+                :constrained="constrainedClocks"
+              />
+            </div>
+
+            <!-- Pestaña 3: Monitor Serie UART -->
+            <div v-else-if="rightTab === 'uart'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div class="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-surface-2/40 px-2 py-1.5">
+                <span
+                  class="inline-block h-2 w-2 shrink-0 rounded-full"
+                  :class="uartConnected ? 'bg-success animate-pulse' : 'bg-muted'"
+                  aria-hidden="true"
+                />
+                <label class="sr-only" for="fpga-uart-baud">{{ t('fpga.baud') }}</label>
+                <select
+                  id="fpga-uart-baud"
+                  v-model.number="uartBaud"
+                  class="h-[24px] rounded border border-border bg-surface px-1.5 font-mono text-xs"
+                  :disabled="uartConnected || uartBusy"
+                  :title="t('fpga.baudHint')"
+                >
+                  <option v-for="n in UART_BAUDS" :key="n" :value="n">{{ n }}</option>
+                </select>
+                <AppButton
+                  size="sm"
+                  :class="slimBtn"
+                  :disabled="uartBusy || uartConnected"
+                  :title="t('fpga.connectUartHint')"
+                  @click="onUartConnect"
+                >
+                  <SwapLabel
+                    :options="[t('fpga.connectUart'), t('fpga.connectingUart')]"
+                    :index="uartBusy && !uartConnected ? 1 : 0"
+                  />
+                </AppButton>
+                <AppButton
+                  size="sm"
+                  variant="outline"
+                  :class="slimBtn"
+                  :disabled="uartBusy || !uartConnected"
+                  :title="t('fpga.disconnectUartHint')"
+                  @click="onUartDisconnect"
+                >
+                  {{ t('fpga.disconnectUart') }}
+                </AppButton>
+                <div class="ml-auto flex items-center gap-3">
+                  <label class="flex cursor-pointer items-center gap-1 text-[0.6875rem] text-muted">
+                    <input v-model="uartTimestampsRef" type="checkbox" class="accent-primary">
+                    {{ t('uart.timestamps') }}
+                  </label>
+                  <label class="flex cursor-pointer items-center gap-1 text-[0.6875rem] text-muted">
+                    <input v-model="uartHexRef" type="checkbox" class="accent-primary">
+                    {{ t('uart.hex') }}
+                  </label>
+                  <label class="flex cursor-pointer items-center gap-1 text-[0.6875rem] text-muted">
+                    <input v-model="showPlot" type="checkbox" class="accent-primary">
+                    {{ t('uart.plot') }}
+                  </label>
+                </div>
+              </div>
+              <UartPlot
+                v-if="showPlot"
+                :series="plotSeries"
+                :version="plotVersion"
+                class="min-h-[7rem]"
+              />
+              <div v-show="!showPlot" ref="uartEl" class="min-h-0 flex-1 overflow-y-auto">
+                <pre class="p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg">{{
+                  uartView || t('fpga.uartEmpty')
+                }}</pre>
+              </div>
+              <form
+                class="flex shrink-0 items-center gap-1.5 border-t border-border bg-surface-2/30 px-2 py-1.5"
+                @submit.prevent="sendUart"
+              >
+                <input
+                  v-model="uartInput"
+                  class="min-w-0 flex-1 rounded border border-border bg-surface px-2 py-1 font-mono text-xs text-fg"
+                  :placeholder="t('uart.sendPlaceholder')"
+                  :disabled="!uartConnected"
+                  @keydown="onUartInputKey"
+                >
+                <select
+                  v-model="uartEnding"
+                  class="h-[26px] rounded border border-border bg-surface px-1 font-mono text-[0.6875rem]"
+                  :title="t('uart.endingHint')"
+                >
+                  <option v-for="e in UART_LINE_ENDINGS" :key="e" :value="e">{{ t(`uart.ending_${e}`) }}</option>
+                </select>
+                <AppButton
+                  size="sm"
+                  type="submit"
+                  :class="slimBtn"
+                  :disabled="!uartConnected || !uartInput"
+                >
+                  {{ t('uart.send') }}
+                </AppButton>
+              </form>
+            </div>
+
+            <!-- Pestaña 4: Consola de Salida / Logs -->
+            <div v-else-if="rightTab === 'log'" ref="logEl" class="min-h-0 flex-1 overflow-y-auto">
               <pre class="p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg">{{
                 logText || t('fpga.logEmpty')
               }}</pre>
@@ -2520,132 +2258,6 @@ onBeforeUnmount(() => {
                 :title="t('fpga.downloadBinHint')"
               >{{ t('fpga.binConsoleLink', { name: compileBinLink.name, n: compileBinLink.n }) }}</a>
             </div>
-            <ProblemsPanel
-              v-if="rightTab === 'problems'"
-              :items="problems"
-              :checking="checking"
-              @select="openProblem"
-            />
-            <ResourcePanel
-              v-if="rightTab === 'resources'"
-              :report="report"
-              :stat="stat"
-              :history="buildHistory"
-              :constrained="constrainedClocks"
-            />
-          </div>
-          <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface max-desk:h-52 max-desk:flex-none">
-            <div class="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-2 py-1.5">
-              <span
-                class="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                :class="uartConnected ? 'bg-success' : 'bg-error'"
-                aria-hidden="true"
-              />
-              <p class="text-[0.625rem] font-bold tracking-[0.14em] text-muted uppercase">{{ t('fpga.uart') }}</p>
-              <label class="sr-only" for="fpga-uart-baud">{{ t('fpga.baud') }}</label>
-              <select
-                id="fpga-uart-baud"
-                v-model.number="uartBaud"
-                class="h-[25px] rounded-md border border-border bg-surface-2 px-1.5 font-mono text-xs max-md:h-8"
-                :disabled="uartConnected || uartBusy"
-                :title="t('fpga.baudHint')"
-              >
-                <option v-for="n in UART_BAUDS" :key="n" :value="n">{{ n }}</option>
-              </select>
-              <AppButton
-                size="sm"
-                :class="slimBtn"
-                :disabled="uartBusy || uartConnected"
-                :title="t('fpga.connectUartHint')"
-                @click="onUartConnect"
-              >
-                <SwapLabel
-                  :options="[t('fpga.connectUart'), t('fpga.connectingUart')]"
-                  :index="uartBusy && !uartConnected ? 1 : 0"
-                />
-              </AppButton>
-              <AppButton
-                size="sm"
-                variant="outline"
-                :class="slimBtn"
-                :disabled="uartBusy || !uartConnected"
-                :title="t('fpga.disconnectUartHint')"
-                @click="onUartDisconnect"
-              >
-                {{ t('fpga.disconnectUart') }}
-              </AppButton>
-              <button
-                type="button"
-                class="ml-auto text-xs font-semibold text-muted hover:text-fg disabled:opacity-30"
-                :disabled="!uartView"
-                @click="clearUart"
-              >
-                {{ t('fpga.clearConsole') }}
-              </button>
-            </div>
-            <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-2 py-1">
-              <label class="flex cursor-pointer items-center gap-1 text-[0.6875rem] text-muted">
-                <input v-model="uartTimestampsRef" type="checkbox" class="accent-primary">
-                {{ t('uart.timestamps') }}
-              </label>
-              <label class="flex cursor-pointer items-center gap-1 text-[0.6875rem] text-muted">
-                <input v-model="uartHexRef" type="checkbox" class="accent-primary">
-                {{ t('uart.hex') }}
-              </label>
-              <label
-                class="flex cursor-pointer items-center gap-1 text-[0.6875rem] text-muted"
-                :title="t('uart.plotHint')"
-              >
-                <input v-model="showPlot" type="checkbox" class="accent-primary">
-                {{ t('uart.plot') }}
-              </label>
-              <button
-                type="button"
-                class="ml-auto text-[0.6875rem] font-semibold text-muted hover:text-fg disabled:opacity-30"
-                :disabled="!uartView"
-                @click="saveUartLog"
-              >
-                {{ t('uart.saveLog') }}
-              </button>
-            </div>
-            <UartPlot
-              v-if="showPlot"
-              :series="plotSeries"
-              :version="plotVersion"
-              class="min-h-[6rem]"
-            />
-            <div v-show="!showPlot" ref="uartEl" class="min-h-0 flex-1 overflow-y-auto">
-              <pre class="p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg">{{
-                uartView || t('fpga.uartEmpty')
-              }}</pre>
-            </div>
-            <form
-              class="flex shrink-0 items-center gap-1.5 border-t border-border px-2 py-1.5"
-              @submit.prevent="sendUart"
-            >
-              <input
-                v-model="uartInput"
-                class="min-w-0 flex-1 rounded-md border border-border bg-surface-2 px-2 py-1 font-mono text-xs text-fg"
-                :placeholder="t('uart.sendPlaceholder')"
-                :disabled="!uartConnected"
-                @keydown="onUartInputKey"
-              >
-              <select
-                v-model="uartEnding"
-                class="h-[25px] rounded-md border border-border bg-surface-2 px-1 font-mono text-[0.6875rem] max-md:h-8"
-                :title="t('uart.endingHint')"
-              >
-                <option v-for="e in UART_LINE_ENDINGS" :key="e" :value="e">{{ t(`uart.ending_${e}`) }}</option>
-              </select>
-              <AppButton
-                size="sm"
-                type="submit"
-                :class="slimBtn"
-                :disabled="!uartConnected || !uartInput"
-              >
-                {{ t('uart.send') }}
-              </AppButton>
-            </form>
           </div>
         </div>
       </section>
@@ -2789,6 +2401,33 @@ onBeforeUnmount(() => {
       :confirm-label="t('share.openConfirm')"
       @confirm="acceptShared"
       @close="pendingShare = null"
+    />
+    <AdvancedToolsModal
+      :open="showAdvancedTools"
+      :usb-busy="usbBusy"
+      :has-bitstream="hasBitstream"
+      :fs-supported="fsSupported"
+      :folder-name="folderName"
+      :folder-handle="folderHandle"
+      :offline-status="offlineStatusRef"
+      :offline-bytes="offlineBytesRef"
+      :artifacts="ARTIFACT_NAMES"
+      @close="showAdvancedTools = false"
+      @read-flash="onReadFlash"
+      @erase-flash="onErase"
+      @verify-flash="onVerifyFlash"
+      @read-eeprom="onReadEeprom"
+      @sram-compiled="onSramCompiled"
+      @sram-upload="onSramUpload"
+      @open-pll="openPll"
+      @open-bram="openBram"
+      @open-hex-view="onShowBinHex"
+      @download-artifact="onDownloadArtifact"
+      @share-project="onShare"
+      @open-folder="onOpenFolder"
+      @save-folder="onSaveFolder"
+      @close-folder="() => closeFolder(true)"
+      @clear-offline="onClearOffline"
     />
   </div>
 </template>
