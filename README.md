@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>⚡ Lattice iCE40 WebUSB Flasher & Mini IDE ⚡</h1>
+  <h1>⚡ Azukar IDE ⚡</h1>
 
   [![Estado](https://img.shields.io/badge/Estado-Activo-success?style=for-the-badge&logoSize=auto)]()
   [![Licencia: MIT](https://img.shields.io/badge/Licencia-MIT-yellow.svg?style=for-the-badge&logoSize=auto)](LICENSE)
