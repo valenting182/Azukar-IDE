@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
   <h1>Azukar IDE</h1>
   <p>Entorno de desarrollo, síntesis y programación WebUSB para FPGAs Lattice iCE40</p>
 
@@ -78,12 +78,17 @@ El sistema es compatible con placas basadas en FPGAs Lattice iCE40 que utilicen 
 - **APIs Web de Hardware:** WebUSB API, Web Serial API, File System Access API.
 - **Despliegue e infraestructura:** Docker, Docker Compose, Nginx, Caddy.
 
-## Ejecución y desarrollo
+## Ejecución y acceso
 
-### Requisitos previos
+### Acceso web directo (Recomendado)
 
+La aplicación está disponible en línea y lista para ser ejecutada directamente en el navegador sin requerir ninguna instalación local:
+
+**https://valenting182.github.io/Azukar-IDE/**
+
+Requisitos de acceso:
 - Navegador basado en Chromium con soporte para WebUSB y Web Serial (Google Chrome o Microsoft Edge, versión 89 o superior).
-- Node.js 18+ (para desarrollo local con Vite) o Docker / Docker Compose (para despliegue en contenedor).
+- Al servirse bajo protocolo seguro HTTPS, el navegador habilita automáticamente el acceso al hardware USB para detectar, programar y comunicarse con la placa FPGA.
 
 ### Entorno local con Vite
 
@@ -185,10 +190,15 @@ Compatible with Lattice iCE40 boards that integrate an FTDI FT2232H dual USB-ser
 
 ## Getting Started
 
-### Prerequisites
+### Direct Web Access (Recommended)
 
+The application is deployed online and ready to run directly from the browser without any local installation:
+
+**https://valenting182.github.io/Azukar-IDE/**
+
+Access Requirements:
 - Chromium-based browser supporting WebUSB and Web Serial (Google Chrome or Microsoft Edge, version 89 or higher).
-- Node.js 18+ (for local Vite development) or Docker / Docker Compose (for containerized deployment).
+- Served over secure HTTPS, enabling native browser access to USB hardware for detection, programming, and UART communication.
 
 ### Local Development with Vite
 

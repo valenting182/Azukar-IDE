@@ -10,7 +10,7 @@ const root = path.dirname(fileURLToPath(import.meta.url))
 
 // Prefijo público donde se sirve la app. Vacío = raíz del dominio.
 // En prod lo pone el build arg BASE_PATH del Dockerfile (ver docs/vps-https.md).
-const base = process.env.VITE_BASE_PATH?.trim() || '/'
+const base = process.env.VITE_BASE_PATH?.trim() || (process.env.GITHUB_PAGES ? '/Azukar-IDE/' : '/')
 
 function yowaspPlugin(): Plugin {
   const yowaspRoot = path.resolve(root, 'node_modules/@yowasp')
@@ -51,6 +51,17 @@ function yowaspPlugin(): Plugin {
     },
     configurePreviewServer(server) {
       server.middlewares.use(handler)
+    },
+    closeBundle() {
+      const distYowasp = path.resolve(root, 'dist/yowasp')
+      const yosysSrc = path.join(yowaspRoot, 'yosys')
+      const nextpnrSrc = path.join(yowaspRoot, 'nextpnr-ice40')
+      if (fs.existsSync(yosysSrc)) {
+        fs.cpSync(yosysSrc, path.join(distYowasp, 'yosys'), { recursive: true })
+      }
+      if (fs.existsSync(nextpnrSrc)) {
+        fs.cpSync(nextpnrSrc, path.join(distYowasp, 'nextpnr-ice40'), { recursive: true })
+      }
     },
   }
 }
