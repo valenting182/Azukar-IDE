@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test src/lib/verilogEditor.test.ts src/lib/isFirefox.test.ts src/lib/storage.test.ts src/fpga/flashPlan.test.ts src/fpga/iceprogPins.test.ts src/fpga/flashDump.test.ts src/fpga/ftdiUsb.test.ts src/fpga/elapsed.test.ts src/fpga/files.test.ts src/fpga/zipVerilog.test.ts src/fpga/uart.test.ts src/fpga/starter.test.ts src/fpga/usbErrors.test.ts src/fpga/boardTypes.test.ts src/fpga/compileArgs.test.ts src/fpga/projectStore.test.ts src/fpga/diagnostics.test.ts src/fpga/pnrReport.test.ts src/fpga/pcfCheck.test.ts src/fpga/problems.test.ts src/fpga/shareLink.test.ts src/fpga/icetools.test.ts src/fpga/uartView.test.ts src/fpga/binCompare.test.ts src/lib/editorComplete.test.ts"
