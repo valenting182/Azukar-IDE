@@ -16,7 +16,7 @@ export function resolveTheme(): AppTheme {
   return 'dark'
 }
 
-export function applyTheme(theme: AppTheme = 'dark'): void {
+export function applyTheme(_theme: AppTheme = 'dark'): void {
   document.documentElement.classList.add('dark')
   themeRef.value = 'dark'
 }

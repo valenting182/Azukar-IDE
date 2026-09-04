@@ -50,7 +50,7 @@ const isUploading = computed(() => {
     <!-- Logo e Info de Proyecto -->
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-2">
-        <img src="/favicon.svg" alt="Azukar" class="h-7 w-7" width="28" height="28">
+        <img src="/logo_azukar_64.png" alt="Azukar" class="h-8 w-8 object-contain" width="32" height="32">
         <span class="text-base font-bold tracking-tight text-fg leading-none">
           Azukar IDE
         </span>

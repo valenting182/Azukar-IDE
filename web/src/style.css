@@ -87,7 +87,7 @@
 @layer base {
   html {
     @apply antialiased;
-    font-size: 18px;
+    font-size: 20px;
     height: 100%;
     overflow: hidden;
   }
