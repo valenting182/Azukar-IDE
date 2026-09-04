@@ -1193,6 +1193,24 @@ async function onCheckSyntax() {
   }
 }
 
+async function onManualCompile() {
+  lastErrorMsg.value = null
+  lastSuccessMsg.value = null
+  await onCompile()
+  if (bin.value) {
+    lastSuccessMsg.value = `¡Bitstream ${binDownloadName(top.value)} generado con éxito! (${(bin.value.length / 1024).toFixed(1)} KiB)`
+  } else if (problemCounts.value.errors > 0) {
+    rightTab.value = 'problems'
+  }
+}
+
+function onDownloadCompiledBin() {
+  if (!bin.value) return
+  const name = binDownloadName(top.value)
+  downloadNamed(name, new Blob([bin.value], { type: 'application/octet-stream' }))
+  appendLog(`Descargado ${name} (${(bin.value.length / 1024).toFixed(1)} KiB)`)
+}
+
 async function onUploadToBoard() {
   lastErrorMsg.value = null
   lastSuccessMsg.value = null
@@ -1859,6 +1877,8 @@ onBeforeUnmount(() => {
       @board-help="onBoardHelp"
       @open-custom-board="openCustomModal"
       @check-syntax="onCheckSyntax"
+      @compile="onManualCompile"
+      @download-bin="onDownloadCompiledBin"
       @upload-board="onUploadToBoard"
       @cancel-compile="onCancelCompile"
       @flash-bin-file="onFlashBinFile"

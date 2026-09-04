@@ -25,6 +25,8 @@ const emit = defineEmits<{
   'board-help': [id: string]
   'open-custom-board': []
   'check-syntax': []
+  'compile': []
+  'download-bin': []
   'upload-board': []
   'cancel-compile': []
   'flash-bin-file': []
@@ -151,7 +153,40 @@ const isUploading = computed(() => {
         <span>{{ checking ? t('fpga.checkingSyntax') : t('fpga.checkSyntax') }}</span>
       </button>
 
-      <!-- Botón 2 (PROMINENTE): Cargar a la placa (Upload / Flash) -->
+      <!-- Botón: Compilar / Producir .bin (WASM Yosys + nextpnr) -->
+      <button
+        v-if="!busyCompile"
+        type="button"
+        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:bg-surface-3 hover:text-primary disabled:opacity-40"
+        :disabled="checking || usbBusy"
+        :title="t('fpga.compileHint')"
+        @click="emit('compile')"
+      >
+        <svg class="h-4 w-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2" />
+          <polyline points="2 17 12 22 22 17" />
+          <polyline points="2 12 12 17 22 12" />
+        </svg>
+        <span>{{ t('fpga.compile') }}</span>
+      </button>
+
+      <!-- Botón: Descargar .bin (Aparece cuando el bitstream está generado) -->
+      <button
+        v-if="hasBitstream && !busyCompile"
+        type="button"
+        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/50 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20 shadow-xs"
+        :title="t('fpga.downloadBinHint')"
+        @click="emit('download-bin')"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <span>{{ t('fpga.downloadBin') }}</span>
+      </button>
+
+      <!-- Botón (PROMINENTE): Cargar a la placa (Upload / Flash) -->
       <button
         v-if="!busyCompile"
         type="button"
