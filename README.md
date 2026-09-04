@@ -10,7 +10,7 @@
   [![Vite](https://img.shields.io/badge/_-Vite-646CFF.svg?style=for-the-badge&logo=vite&logoColor=white&logoSize=auto)](https://vite.dev/)
   [![WebAssembly](https://img.shields.io/badge/_-WebAssembly-654FF0.svg?style=for-the-badge&logo=webassembly&logoColor=white&logoSize=auto)](https://webassembly.org/)
   [![WebUSB](https://img.shields.io/badge/_-WebUSB-005C84.svg?style=for-the-badge&logo=usb&logoColor=white&logoSize=auto)]()
-  [![Docker](https://img.shields.io/badge/_-Docker-2496ED.svg?style=for-the-badge&logo=docker&logoColor=white&logoSize=auto)](https://www.docker.com/)
+  [![GitHub Pages](https://img.shields.io/badge/_-GitHub_Pages-222222.svg?style=for-the-badge&logo=github&logoColor=white&logoSize=auto)](https://valenting182.github.io/Azukar-IDE/)
   [![Yosys](https://img.shields.io/badge/_-Yosys-FF8000.svg?style=for-the-badge&logo=logoColor=white&logoSize=auto)](https://yosyshq.net/yosys/)
   [![nextpnr](https://img.shields.io/badge/_-nextpnr-339933.svg?style=for-the-badge&logoSize=auto)](https://github.com/YosysHQ/nextpnr)
   [![FTDI](https://img.shields.io/badge/_-FT2232H-E31B23.svg?style=for-the-badge&logoSize=auto)](https://ftdichip.com/)
@@ -76,7 +76,7 @@ El sistema es compatible con placas basadas en FPGAs Lattice iCE40 que utilicen 
 - **Editor de código:** CodeMirror 6.
 - **EDA WebAssembly:** YoWASP (Yosys, nextpnr-ice40, Project IceStorm).
 - **APIs Web de Hardware:** WebUSB API, Web Serial API, File System Access API.
-- **Despliegue e infraestructura:** Docker, Docker Compose, Nginx, Caddy.
+- **Despliegue e integración continua:** GitHub Pages, GitHub Actions.
 
 ## Ejecución y acceso
 
@@ -90,39 +90,18 @@ Requisitos de acceso:
 - Navegador basado en Chromium con soporte para WebUSB y Web Serial (Google Chrome o Microsoft Edge, versión 89 o superior).
 - Al servirse bajo protocolo seguro HTTPS, el navegador habilita automáticamente el acceso al hardware USB para detectar, programar y comunicarse con la placa FPGA.
 
-### Entorno local con Vite
+### Desarrollo local
 
-1. Clonar el repositorio y acceder a la carpeta del cliente web:
-   ```bash
-   git clone https://github.com/valenting182/Azukar-IDE.git
-   cd Azukar-IDE/web
-   ```
+Para clonar el proyecto y trabajar en el entorno de desarrollo local con recarga en vivo:
 
-2. Instalar dependencias:
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/valenting182/Azukar-IDE.git
+cd Azukar-IDE/web
+npm install
+npm run dev
+```
 
-3. Iniciar el servidor de desarrollo:
-   ```bash
-   npm run dev
-   ```
-   Abrir en el navegador en `http://localhost:5173`.
-
-### Despliegue con Docker
-
-1. Clonar el repositorio y configurar variables de entorno:
-   ```bash
-   git clone https://github.com/valenting182/Azukar-IDE.git
-   cd Azukar-IDE
-   cp .env.example .env
-   ```
-
-2. Construir e iniciar el contenedor:
-   ```bash
-   docker compose up --build -d
-   ```
-   Abrir en el navegador en `http://localhost:9090`.
+La aplicación estará disponible en `http://localhost:5173`.
 
 ## Licencia
 
@@ -186,7 +165,7 @@ Compatible with Lattice iCE40 boards that integrate an FTDI FT2232H dual USB-ser
 - **Code Editor:** CodeMirror 6.
 - **WebAssembly EDA:** YoWASP (Yosys, nextpnr-ice40, Project IceStorm).
 - **Web Hardware APIs:** WebUSB API, Web Serial API, File System Access API.
-- **Deployment & Infrastructure:** Docker, Docker Compose, Nginx, Caddy.
+- **Deployment & CI/CD:** GitHub Pages, GitHub Actions.
 
 ## Getting Started
 
@@ -200,39 +179,18 @@ Access Requirements:
 - Chromium-based browser supporting WebUSB and Web Serial (Google Chrome or Microsoft Edge, version 89 or higher).
 - Served over secure HTTPS, enabling native browser access to USB hardware for detection, programming, and UART communication.
 
-### Local Development with Vite
+### Local Development
 
-1. Clone the repository and navigate to the web application directory:
-   ```bash
-   git clone https://github.com/valenting182/Azukar-IDE.git
-   cd Azukar-IDE/web
-   ```
+To clone the repository and run the application locally with hot-module replacement (HMR):
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/valenting182/Azukar-IDE.git
+cd Azukar-IDE/web
+npm install
+npm run dev
+```
 
-3. Launch the development server:
-   ```bash
-   npm run dev
-   ```
-   Open `http://localhost:5173` in your browser.
-
-### Container Deployment with Docker
-
-1. Clone the repository and prepare the environment configuration:
-   ```bash
-   git clone https://github.com/valenting182/Azukar-IDE.git
-   cd Azukar-IDE
-   cp .env.example .env
-   ```
-
-2. Build and start the service:
-   ```bash
-   docker compose up --build -d
-   ```
-   Open `http://localhost:9090` in your browser.
+The application will be accessible at `http://localhost:5173`.
 
 ## License
 
